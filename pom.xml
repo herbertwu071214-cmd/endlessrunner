@@ -53,7 +53,7 @@
                     <execution>
                         <id>default-cli</id>
                         <configuration>
-                            <mainClass>com.herb.macondo.endlessrunner.Launcher</mainClass>
+                            <mainClass>com.herb.endlessrunner.Launcher</mainClass>
                             <launcher>app</launcher>
                         </configuration>
                     </execution>

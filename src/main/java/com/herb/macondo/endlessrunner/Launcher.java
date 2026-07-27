@@ -1,4 +1,4 @@
-package com.herb.macondo.endlessrunner;
+package com.herb.endlessrunner;
 
 public class Launcher {
     public static void main(String[] args) throws InterruptedException {

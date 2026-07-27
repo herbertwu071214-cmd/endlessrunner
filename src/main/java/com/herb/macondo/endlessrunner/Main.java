@@ -1,8 +1,8 @@
-package com.herb.macondo.endlessrunner;
+package com.herb.endlessrunner;
 
-import com.herb.macondo.endlessrunner.controller.GameController;
-import com.herb.macondo.endlessrunner.model.GameModel;
-import com.herb.macondo.endlessrunner.view.GameView;
+import com.herb.endlessrunner.controller.GameController;
+import com.herb.endlessrunner.model.GameModel;
+import com.herb.endlessrunner.view.GameView;
 import javafx.application.Application;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;

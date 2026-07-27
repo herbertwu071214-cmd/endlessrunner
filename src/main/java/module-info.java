@@ -1,8 +1,6 @@
-module com.herb.macondo.endlessrunner {
+module com.herb.endlessrunner {
     requires javafx.controls;
+    requires javafx.fxml;
 
-    exports com.herb.macondo.endlessrunner;
-    exports com.herb.macondo.endlessrunner.controller;
-    exports com.herb.macondo.endlessrunner.model;
-    exports com.herb.macondo.endlessrunner.view;
+    exports com.herb.endlessrunner;
 }
