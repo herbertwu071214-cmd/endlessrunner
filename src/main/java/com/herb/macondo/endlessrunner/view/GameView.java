@@ -6,6 +6,8 @@ import com.herb.endlessrunner.model.Coin;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
 
 public class GameView {
     private Canvas canvas;
@@ -16,44 +18,23 @@ public class GameView {
 
     public void render(GameModel model) {
         GraphicsContext gc = canvas.getGraphicsContext2D();
-        gc.setFill(Color.BLACK);
-        gc.fillRect(0, 0, canvas.getWidth(), canvas.getHeight());
+        double width = canvas.getWidth();
+        double height = canvas.getHeight();
+        double horizonY = 95;
+        double playerGroundY = model.getPlayerY() + 10;
 
-        double laneWidth = canvas.getWidth() / 3;
-
-        gc.setStroke(Color.GRAY);
-        gc.setLineWidth(1);
-        for (int i = 1; i < 3; i++) {
-            double x = i * laneWidth;
-            gc.strokeLine(x, 0, x, canvas.getHeight());
-        }
+        drawWorld(gc, width, height, horizonY, playerGroundY, model);
 
         for (Obstacle o : model.getObstacles()) {
-            double laneX = o.getLane() * laneWidth + laneWidth/2 - o.getWidth()/2;
-            double y = model.getPlayerY() + 10 - o.getHeight();
-
-            if (o.getType() == Obstacle.ObstacleType.GROUND) {
-                gc.setFill(Color.RED);
-                gc.fillRect(laneX, y, o.getWidth(), o.getHeight());
-            } else if (o.getType() == Obstacle.ObstacleType.LOW) {
-                gc.setFill(Color.ORANGE);
-                gc.fillRect(laneX, y + 20, o.getWidth(), o.getHeight());
-            } else {
-                gc.setFill(Color.PURPLE);
-                gc.fillRect(laneX, y - 20, o.getWidth(), o.getHeight());
-            }
+            drawObstacle(gc, o, width, horizonY, playerGroundY);
         }
 
         for (Coin c : model.getCoins()) {
-            double laneX = c.getLane() * laneWidth + laneWidth/2 - 12;
-            double y = model.getPlayerY() - 10 + c.getYOffset();
-            gc.setFill(Color.GOLD);
-            gc.fillOval(laneX, y, 24, 24);
-            gc.setFill(Color.YELLOW);
-            gc.fillOval(laneX + 4, y + 4, 16, 16);
+            drawCoin(gc, c, width, horizonY, playerGroundY);
         }
 
-        double playerX = model.getPlayerLane() * laneWidth + laneWidth/2 - model.getPlayerWidth()/2;
+        double laneWidth = width / 3;
+        double playerX = model.getPlayerLanePosition() * laneWidth + laneWidth/2 - model.getPlayerWidth()/2;
         double playerY = model.getPlayerY() - model.getPlayerHeight();
         double w = model.getPlayerWidth();
         double h = model.getPlayerHeight();
@@ -61,37 +42,151 @@ public class GameView {
             h = 20;
             playerY = model.getPlayerY() - h;
         }
-        gc.setFill(Color.BLUE);
-        gc.fillRect(playerX, playerY, w, h);
-        gc.setFill(Color.CYAN);
-        gc.fillRect(playerX + 5, playerY + 5, 10, 10);
+        drawPlayer(gc, playerX, playerY, w, h, model.isSliding());
 
-        gc.setStroke(Color.WHITE);
-        gc.setLineWidth(2);
-        gc.strokeLine(0, model.getPlayerY() + 10, canvas.getWidth(), model.getPlayerY() + 10);
-
-        gc.setFill(Color.WHITE);
-        gc.fillText("Score: " + model.getScore(), 20, 30);
-        gc.fillText("High: " + model.getHighScore(), 20, 60);
-        gc.fillText("Speed: " + (int)(model.getSpeed() / 10) + " km/h", 20, 90);
+        drawHud(gc, model);
 
         if (model.isGameOver()) {
             gc.setFill(Color.rgb(0, 0, 0, 0.7));
-            gc.fillRect(0, 0, canvas.getWidth(), canvas.getHeight());
+            gc.fillRect(0, 0, width, height);
 
-            gc.setFill(Color.RED);
-            gc.setFont(javafx.scene.text.Font.font("Arial", 48));
-            gc.fillText("💀 GAME OVER", canvas.getWidth()/2 - 160, canvas.getHeight()/2 - 30);
+            gc.setFill(Color.rgb(255, 80, 70));
+            gc.setFont(Font.font("Arial", FontWeight.BOLD, 48));
+            gc.fillText("GAME OVER", width/2 - 145, height/2 - 30);
 
             gc.setFill(Color.WHITE);
-            gc.setFont(javafx.scene.text.Font.font("Arial", 24));
-            gc.fillText("Score: " + model.getScore(), canvas.getWidth()/2 - 60, canvas.getHeight()/2 + 40);
-            gc.fillText("High Score: " + model.getHighScore(), canvas.getWidth()/2 - 80, canvas.getHeight()/2 + 80);
+            gc.setFont(Font.font("Arial", 24));
+            gc.fillText("Score: " + model.getScore(), width/2 - 60, height/2 + 40);
+            gc.fillText("High Score: " + model.getHighScore(), width/2 - 80, height/2 + 80);
 
             gc.setFill(Color.LIGHTGRAY);
-            gc.setFont(javafx.scene.text.Font.font("Arial", 18));
-            gc.fillText("Press 'R' to restart", canvas.getWidth()/2 - 80, canvas.getHeight()/2 + 130);
+            gc.setFont(Font.font("Arial", 18));
+            gc.fillText("Press R to restart", width/2 - 74, height/2 + 130);
         }
+    }
+
+    private void drawWorld(GraphicsContext gc, double width, double height, double horizonY,
+                           double playerGroundY, GameModel model) {
+        gc.setFill(Color.rgb(18, 24, 34));
+        gc.fillRect(0, 0, width, height);
+        gc.setFill(Color.rgb(32, 43, 55));
+        gc.fillRect(0, horizonY, width, height - horizonY);
+
+        double centerX = width / 2;
+        double roadTopHalf = 70;
+        double roadBottomHalf = width * 0.48;
+        gc.setFill(Color.rgb(54, 58, 66));
+        gc.fillPolygon(
+                new double[]{centerX - roadTopHalf, centerX + roadTopHalf, centerX + roadBottomHalf, centerX - roadBottomHalf},
+                new double[]{horizonY, horizonY, playerGroundY + 95, playerGroundY + 95},
+                4
+        );
+
+        gc.setStroke(Color.rgb(235, 238, 224, 0.75));
+        gc.setLineWidth(3);
+        for (int boundary = 1; boundary < 3; boundary++) {
+            double laneRatio = boundary / 3.0;
+            gc.strokeLine(centerX - roadTopHalf + roadTopHalf * 2 * laneRatio, horizonY,
+                    centerX - roadBottomHalf + roadBottomHalf * 2 * laneRatio, playerGroundY + 95);
+        }
+
+        gc.setStroke(Color.rgb(255, 255, 255, 0.18));
+        gc.setLineWidth(2);
+        double stripeOffset = (model.getDistance() % 115) / 115;
+        for (int i = -1; i < 9; i++) {
+            double t = (i + stripeOffset) / 8.0;
+            if (t < 0 || t > 1) continue;
+            double y = horizonY + (playerGroundY + 95 - horizonY) * t;
+            double half = roadTopHalf + (roadBottomHalf - roadTopHalf) * t;
+            gc.strokeLine(centerX - half, y, centerX + half, y);
+        }
+    }
+
+    private void drawObstacle(GraphicsContext gc, Obstacle o, double width, double horizonY, double playerGroundY) {
+        double depth = depth(o.getX());
+        if (depth <= 0 || depth > 1.15) return;
+        double scale = 0.35 + depth * 1.25;
+        double x = laneCenter(o.getLane(), width, depth);
+        double groundY = trackY(horizonY, playerGroundY, depth);
+        double obstacleWidth = o.getWidth() * scale;
+        double obstacleHeight = o.getHeight() * scale;
+        double y = groundY - obstacleHeight;
+
+        if (o.getType() == Obstacle.ObstacleType.LOW) {
+            y = groundY - obstacleHeight * 0.55;
+        } else if (o.getType() == Obstacle.ObstacleType.HIGH) {
+            y = groundY - obstacleHeight - 42 * scale;
+        }
+
+        if (depth > 0.2 && depth < 0.82) {
+            double pulse = 0.35 + Math.abs(Math.sin(o.getWarningPulse())) * 0.35;
+            gc.setFill(Color.rgb(255, 78, 64, pulse));
+            gc.fillOval(x - obstacleWidth * 0.75, groundY - 8 * scale, obstacleWidth * 1.5, 18 * scale);
+        }
+
+        Color body = o.getType() == Obstacle.ObstacleType.GROUND
+                ? Color.rgb(226, 55, 48)
+                : o.getType() == Obstacle.ObstacleType.LOW
+                ? Color.rgb(255, 149, 39)
+                : Color.rgb(148, 83, 255);
+        gc.setFill(Color.rgb(0, 0, 0, 0.28));
+        gc.fillRoundRect(x - obstacleWidth / 2 + 5 * scale, y + 6 * scale, obstacleWidth, obstacleHeight, 10, 10);
+        gc.setFill(body);
+        gc.fillRoundRect(x - obstacleWidth / 2, y, obstacleWidth, obstacleHeight, 8, 8);
+        gc.setFill(Color.rgb(255, 255, 255, 0.24));
+        gc.fillRoundRect(x - obstacleWidth / 2 + 7 * scale, y + 6 * scale, obstacleWidth * 0.28, obstacleHeight - 12 * scale, 4, 4);
+    }
+
+    private void drawCoin(GraphicsContext gc, Coin c, double width, double horizonY, double playerGroundY) {
+        double depth = depth(c.getX());
+        if (depth <= 0 || depth > 1.15) return;
+        double scale = 0.45 + depth;
+        double size = 20 * scale;
+        double x = laneCenter(c.getLane(), width, depth);
+        double y = trackY(horizonY, playerGroundY, depth) + c.getYOffset() * scale;
+        gc.setFill(Color.rgb(0, 0, 0, 0.25));
+        gc.fillOval(x - size / 2 + 3, y - size / 2 + 4, size, size * 0.6);
+        gc.setFill(Color.GOLD);
+        gc.fillOval(x - size / 2, y - size / 2, size, size);
+        gc.setFill(Color.rgb(255, 245, 145));
+        gc.fillOval(x - size * 0.24, y - size * 0.24, size * 0.48, size * 0.48);
+    }
+
+    private void drawPlayer(GraphicsContext gc, double x, double y, double w, double h, boolean sliding) {
+        gc.setFill(Color.rgb(0, 0, 0, 0.32));
+        gc.fillOval(x - 7, y + h - 3, w + 14, 14);
+        gc.setFill(Color.rgb(31, 122, 255));
+        gc.fillRoundRect(x, y, w, h, 9, 9);
+        gc.setFill(Color.rgb(103, 218, 255));
+        gc.fillRoundRect(x + 7, y + 7, sliding ? 18 : 12, sliding ? 6 : 13, 5, 5);
+        gc.setFill(Color.rgb(12, 35, 75));
+        gc.fillRect(x + 6, y + h - 5, w - 12, 5);
+    }
+
+    private void drawHud(GraphicsContext gc, GameModel model) {
+        gc.setFill(Color.rgb(0, 0, 0, 0.35));
+        gc.fillRoundRect(14, 13, 170, 86, 8, 8);
+        gc.setFill(Color.WHITE);
+        gc.setFont(Font.font("Arial", FontWeight.BOLD, 18));
+        gc.fillText("Score: " + model.getScore(), 26, 38);
+        gc.setFont(Font.font("Arial", 15));
+        gc.fillText("High: " + model.getHighScore(), 26, 63);
+        gc.fillText("Speed: " + (int)(model.getSpeed() / 10) + " km/h", 26, 87);
+    }
+
+    private double depth(double objectX) {
+        return 1.0 - objectX / GameModel.SPAWN_X;
+    }
+
+    private double trackY(double horizonY, double playerGroundY, double depth) {
+        return horizonY + (playerGroundY - horizonY) * Math.pow(depth, 0.82);
+    }
+
+    private double laneCenter(int lane, double width, double depth) {
+        double flatLaneWidth = width / 3;
+        double flatCenter = lane * flatLaneWidth + flatLaneWidth / 2;
+        double perspectivePull = 1.0 - depth;
+        return width / 2 + (flatCenter - width / 2) * (0.25 + depth * 0.75) * (1.0 - perspectivePull * 0.08);
     }
 
     public double getCanvasWidth() { return canvas.getWidth(); }

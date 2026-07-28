@@ -3,13 +3,19 @@ package com.herb.endlessrunner.model;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Random;
 
 public class GameModel {
+    public static final double PLAYER_GROUND_Y = 400;
+    public static final double PLAYER_TRACK_X = 150;
+    public static final double SPAWN_X = 960;
+
     private int score;
     private int highScore;
     private boolean gameOver;
     private int playerLane;
     private int targetLane;
+    private double playerLanePosition;
     private double playerY;
     private double velocityY;
     private boolean isJumping;
@@ -25,6 +31,8 @@ public class GameModel {
     private double coinSpawnTimer;
     private double speed;
     private double distance;
+    private int lastObstacleLane;
+    private final Random random = new Random();
 
     public GameModel() {
         obstacles = new ArrayList<>();
@@ -37,7 +45,8 @@ public class GameModel {
         gameOver = false;
         playerLane = 1;
         targetLane = 1;
-        playerY = 400;
+        playerLanePosition = 1;
+        playerY = PLAYER_GROUND_Y;
         velocityY = 0;
         isJumping = false;
         isSliding = false;
@@ -47,8 +56,10 @@ public class GameModel {
         coins.clear();
         spawnTimer = 0;
         coinSpawnTimer = 0;
-        speed = 300;
+        speed = 340;
         distance = 0;
+        lastObstacleLane = 1;
+        spawnCoinTrail(SPAWN_X + 120, 1, 5, 70, -82);
     }
 
     public void update(double deltaTime) {
@@ -57,8 +68,8 @@ public class GameModel {
         if (isJumping) {
             velocityY += 600 * deltaTime;
             playerY += velocityY * deltaTime;
-            if (playerY >= 400) {
-                playerY = 400;
+            if (playerY >= PLAYER_GROUND_Y) {
+                playerY = PLAYER_GROUND_Y;
                 isJumping = false;
                 velocityY = 0;
             }
@@ -72,12 +83,17 @@ public class GameModel {
             }
         }
 
-        if (playerLane != targetLane) {
-            laneSwitchTimer += deltaTime;
-            if (laneSwitchTimer >= 0.1) {
-                laneSwitchTimer = 0;
-                playerLane += (targetLane > playerLane) ? 1 : -1;
+        if (Math.abs(playerLanePosition - targetLane) > 0.01) {
+            double direction = Math.signum(targetLane - playerLanePosition);
+            playerLanePosition += direction * deltaTime * 7.5;
+            if ((direction > 0 && playerLanePosition >= targetLane)
+                    || (direction < 0 && playerLanePosition <= targetLane)) {
+                playerLanePosition = targetLane;
             }
+            playerLane = (int)Math.round(playerLanePosition);
+        } else {
+            playerLanePosition = targetLane;
+            playerLane = targetLane;
         }
 
         distance += speed * deltaTime;
@@ -86,16 +102,16 @@ public class GameModel {
         if (speed > 800) speed = 800;
 
         spawnTimer += deltaTime;
-        double spawnInterval = Math.max(0.8, 2.0 - speed / 500);
+        double spawnInterval = Math.max(0.95, 2.15 - speed / 520);
         if (spawnTimer >= spawnInterval) {
             spawnTimer = 0;
-            spawnObstacle();
+            spawnPattern();
         }
 
         coinSpawnTimer += deltaTime;
-        if (coinSpawnTimer >= 1.5) {
+        if (coinSpawnTimer >= 1.2) {
             coinSpawnTimer = 0;
-            spawnCoin();
+            spawnCoinTrail(SPAWN_X + random.nextInt(80), random.nextInt(3), 4 + random.nextInt(3), 62, -82);
         }
 
         Iterator<Obstacle> obsIt = obstacles.iterator();
@@ -117,23 +133,54 @@ public class GameModel {
     }
 
     private void spawnObstacle() {
-        int lane = (int)(Math.random() * 3);
+        int lane = random.nextInt(3);
+        if (lane == lastObstacleLane && random.nextDouble() < 0.55) {
+            lane = (lane + (random.nextBoolean() ? 1 : 2)) % 3;
+        }
+        lastObstacleLane = lane;
         Obstacle.ObstacleType type;
-        double r = Math.random();
+        double r = random.nextDouble();
         if (r < 0.4) type = Obstacle.ObstacleType.GROUND;
         else if (r < 0.7) type = Obstacle.ObstacleType.LOW;
         else type = Obstacle.ObstacleType.HIGH;
-        obstacles.add(new Obstacle(850, lane, type));
+        obstacles.add(new Obstacle(SPAWN_X, lane, type));
+    }
+
+    private void spawnPattern() {
+        double r = random.nextDouble();
+        if (r < 0.55) {
+            spawnObstacle();
+        } else if (r < 0.82) {
+            int blockedA = random.nextInt(3);
+            int blockedB = (blockedA + 1 + random.nextInt(2)) % 3;
+            obstacles.add(new Obstacle(SPAWN_X, blockedA, Obstacle.ObstacleType.GROUND));
+            obstacles.add(new Obstacle(SPAWN_X + 90, blockedB, random.nextBoolean()
+                    ? Obstacle.ObstacleType.LOW
+                    : Obstacle.ObstacleType.HIGH));
+            lastObstacleLane = blockedB;
+        } else {
+            int lane = random.nextInt(3);
+            obstacles.add(new Obstacle(SPAWN_X, lane, Obstacle.ObstacleType.HIGH));
+            spawnCoinTrail(SPAWN_X + 70, lane, 4, 62, -140);
+            lastObstacleLane = lane;
+        }
     }
 
     private void spawnCoin() {
-        int lane = (int)(Math.random() * 3);
-        coins.add(new Coin(850, lane));
+        int lane = random.nextInt(3);
+        coins.add(new Coin(SPAWN_X, lane, -82));
+    }
+
+    private void spawnCoinTrail(double startX, int lane, int count, double spacing, double yOffset) {
+        for (int i = 0; i < count; i++) {
+            coins.add(new Coin(startX + i * spacing, lane, yOffset));
+        }
     }
 
     private void checkCollisions() {
         for (Obstacle o : obstacles) {
             if (o.getLane() != playerLane) continue;
+            if (Math.abs(o.getX() - PLAYER_TRACK_X) > 38) continue;
 
             double playerBottom = playerY + 10;
             double playerTop = playerY + 10 - playerHeight;
@@ -161,6 +208,7 @@ public class GameModel {
         while (coinIt.hasNext()) {
             Coin c = coinIt.next();
             if (c.getLane() == playerLane) {
+                if (Math.abs(c.getX() - PLAYER_TRACK_X) > 42) continue;
                 double coinCenterY = playerY - 10 + c.getYOffset();
                 double playerTop = playerY + 10 - playerHeight;
                 double playerBottom = playerY + 10;
@@ -192,15 +240,15 @@ public class GameModel {
     }
 
     public void moveLeft() {
-        if (!gameOver && playerLane > 0 && playerLane == targetLane) {
-            targetLane = playerLane - 1;
+        if (!gameOver && targetLane > 0) {
+            targetLane = targetLane - 1;
             laneSwitchTimer = 0;
         }
     }
 
     public void moveRight() {
-        if (!gameOver && playerLane < 2 && playerLane == targetLane) {
-            targetLane = playerLane + 1;
+        if (!gameOver && targetLane < 2) {
+            targetLane = targetLane + 1;
             laneSwitchTimer = 0;
         }
     }
@@ -209,6 +257,7 @@ public class GameModel {
     public int getHighScore() { return highScore; }
     public boolean isGameOver() { return gameOver; }
     public int getPlayerLane() { return playerLane; }
+    public double getPlayerLanePosition() { return playerLanePosition; }
     public double getPlayerY() { return playerY; }
     public boolean isJumping() { return isJumping; }
     public boolean isSliding() { return isSliding; }
