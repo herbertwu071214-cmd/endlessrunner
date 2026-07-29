@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Endless Runner</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            background: #141820;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+
+        .game-wrap {
+            width: min(94vw, 900px);
+        }
+
+        canvas {
+            width: 100%;
+            aspect-ratio: 4 / 3;
+            display: block;
+            background: #202b37;
+            border: 2px solid #344154;
+            border-radius: 8px;
+        }
+
+        .controls {
+            margin-top: 10px;
+            color: #d8dee9;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+<main class="game-wrap">
+    <canvas id="game" width="800" height="600"></canvas>
+    <div class="controls">
+        Arrow keys or WASD to move. Space/Up to jump. Down/S to slide. R to restart.
+    </div>
+</main>
+
+<script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    const lanes = 3;
+    const groundY = 410;
+    const spawnX = 960;
+    const playerTrackX = 150;
+
+    let score;
+    let highScore = 0;
+    let gameOver;
+    let lane;
+    let targetLane;
+    let lanePos;
+    let playerY;
+    let velocityY;
+    let jumping;
+    let sliding;
+    let slideTimer;
+    let speed;
+    let distance;
+    let spawnTimer;
+    let coinTimer;
+    let lastObstacleLane;
+    let obstacles;
+    let coins;
+    let keys = {};
+    let lastTime = 0;
+
+    function resetGame() {
+        score = 0;
+        gameOver = false;
+        lane = 1;
+        targetLane = 1;
+        lanePos = 1;
+        playerY = groundY;
+        velocityY = 0;
+        jumping = false;
+        sliding = false;
+        slideTimer = 0;
+        speed = 340;
+        distance = 0;
+        spawnTimer = 0;
+        coinTimer = 0;
+        lastObstacleLane = 1;
+        obstacles = [];
+        coins = [];
+        spawnCoinTrail(spawnX + 120, 1, 5, 70, -82);
+    }
+
+    function update(dt) {
+        if (gameOver) return;
+
+        if (jumping) {
+            velocityY += 620 * dt;
+            playerY += velocityY * dt;
+            if (playerY >= groundY) {
+                playerY = groundY;
+                velocityY = 0;
+                jumping = false;
+            }
+        }
+
+        if (sliding) {
+            slideTimer -= dt;
+            if (slideTimer <= 0) {
+                sliding = false;
+            }
+        }
+
+        if (Math.abs(lanePos - targetLane) > 0.01) {
+            const dir = Math.sign(targetLane - lanePos);
+            lanePos += dir * dt * 7.5;
+            if ((dir > 0 && lanePos >= targetLane) || (dir < 0 && lanePos <= targetLane)) {
+                lanePos = targetLane;
+            }
+            lane = Math.round(lanePos);
+        } else {
+            lanePos = targetLane;
+            lane = targetLane;
+        }
+
+        distance += speed * dt;
+        score = Math.floor(distance / 10);
+        speed = Math.min(800, speed + dt * 10);
+
+        spawnTimer += dt;
+        const spawnInterval = Math.max(0.95, 2.15 - speed / 520);
+        if (spawnTimer >= spawnInterval) {
+            spawnTimer = 0;
+            spawnPattern();
+        }
+
+        coinTimer += dt;
+        if (coinTimer >= 1.2) {
+            coinTimer = 0;
+            spawnCoinTrail(spawnX + Math.random() * 80, randomLane(), 4 + Math.floor(Math.random() * 3), 62, -82);
+        }
+
+        obstacles.forEach(o => {
+            o.x -= speed * dt;
+            o.pulse += dt * 7;
+        });
+        coins.forEach(c => {
+            c.x -= speed * dt;
+            c.bob += dt * 6;
+        });
+
+        obstacles = obstacles.filter(o => o.x > -50);
+        coins = coins.filter(c => c.x > -50 && !c.collected);
+
+        checkCollisions();
+        collectCoins();
+    }
+
+    function spawnPattern() {
+        const r = Math.random();
+        if (r < 0.55) {
+            spawnObstacle();
+        } else if (r < 0.82) {
+            const a = randomLane();
+            const b = (a + 1 + Math.floor(Math.random() * 2)) % 3;
+            obstacles.push(makeObstacle(spawnX, a, "ground"));
+            obstacles.push(makeObstacle(spawnX + 90, b, Math.random() < 0.5 ? "low" : "high"));
+            lastObstacleLane = b;
+        } else {
+            const chosenLane = randomLane();
+            obstacles.push(makeObstacle(spawnX, chosenLane, "high"));
+            spawnCoinTrail(spawnX + 70, chosenLane, 4, 62, -140);
+            lastObstacleLane = chosenLane;
+        }
+    }
+
+    function spawnObstacle() {
+        let chosenLane = randomLane();
+        if (chosenLane === lastObstacleLane && Math.random() < 0.55) {
+            chosenLane = (chosenLane + (Math.random() < 0.5 ? 1 : 2)) % 3;
+        }
+
+        lastObstacleLane = chosenLane;
+        const r = Math.random();
+        const type = r < 0.4 ? "ground" : r < 0.7 ? "low" : "high";
+        obstacles.push(makeObstacle(spawnX, chosenLane, type));
+    }
+
+    function makeObstacle(x, laneIndex, type) {
+        const sizes = {
+            ground: { width: 42, height: 52 },
+            low: { width: 42, height: 26 },
+            high: { width: 42, height: 46 }
+        };
+        return { x, lane: laneIndex, type, pulse: 0, ...sizes[type] };
+    }
+
+    function spawnCoinTrail(x, laneIndex, count, spacing, yOffset) {
+        for (let i = 0; i < count; i++) {
+            coins.push({
+                x: x + i * spacing,
+                lane: laneIndex,
+                yOffset,
+                bob: x / 80 + i,
+                collected: false
+            });
+        }
+    }
+
+    function checkCollisions() {
+        for (const o of obstacles) {
+            if (o.lane !== lane) continue;
+            if (Math.abs(o.x - playerTrackX) > 38) continue;
+
+            if (hitsPlayer(o)) {
+                gameOver = true;
+                highScore = Math.max(highScore, score);
+                break;
+            }
+        }
+    }
+
+    function hitsPlayer(obstacle) {
+        if (obstacle.type === "ground") return true;
+        if (obstacle.type === "low") return playerY > groundY - 72;
+        return !sliding || jumping;
+    }
+
+    function collectCoins() {
+        for (const coin of coins) {
+            if (coin.lane !== lane) continue;
+            if (Math.abs(coin.x - playerTrackX) > 42) continue;
+
+            coin.collected = true;
+            score += 10;
+        }
+    }
+
+    function draw() {
+        const width = canvas.width;
+        const height = canvas.height;
+        const horizonY = 95;
+        const playerGroundY = playerY + 10;
+
+        drawWorld(width, height, horizonY, playerGroundY);
+        coins.forEach(c => drawCoin(c, width, horizonY, playerGroundY));
+        obstacles.forEach(o => drawObstacle(o, width, horizonY, playerGroundY));
+        drawPlayer(width);
+        drawHud();
+
+        if (gameOver) {
+            ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+            ctx.fillRect(0, 0, width, height);
+            ctx.fillStyle = "#ff5046";
+            ctx.font = "bold 48px Arial";
+            ctx.fillText("GAME OVER", width / 2 - 145, height / 2 - 30);
+            ctx.fillStyle = "white";
+            ctx.font = "24px Arial";
+            ctx.fillText("Score: " + score, width / 2 - 60, height / 2 + 40);
+            ctx.fillText("High Score: " + highScore, width / 2 - 80, height / 2 + 80);
+            ctx.font = "18px Arial";
+            ctx.fillText("Press R to restart", width / 2 - 74, height / 2 + 130);
+        }
+    }
+
+    function drawWorld(width, height, horizonY, playerGroundY) {
+        ctx.fillStyle = "#121822";
+        ctx.fillRect(0, 0, width, height);
+        ctx.fillStyle = "#202b37";
+        ctx.fillRect(0, horizonY, width, height - horizonY);
+
+        const centerX = width / 2;
+        const topHalf = 70;
+        const bottomHalf = width * 0.48;
+
+        ctx.fillStyle = "#363a42";
+        ctx.beginPath();
+        ctx.moveTo(centerX - topHalf, horizonY);
+        ctx.lineTo(centerX + topHalf, horizonY);
+        ctx.lineTo(centerX + bottomHalf, playerGroundY + 95);
+        ctx.lineTo(centerX - bottomHalf, playerGroundY + 95);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.strokeStyle = "rgba(235, 238, 224, 0.75)";
+        ctx.lineWidth = 3;
+        for (let i = 1; i < lanes; i++) {
+            const ratio = i / lanes;
+            ctx.beginPath();
+            ctx.moveTo(centerX - topHalf + topHalf * 2 * ratio, horizonY);
+            ctx.lineTo(centerX - bottomHalf + bottomHalf * 2 * ratio, playerGroundY + 95);
+            ctx.stroke();
+        }
+    }
+
+    function drawObstacle(o, width, horizonY, playerGroundY) {
+        const d = depth(o.x);
+        if (d <= 0 || d > 1.15) return;
+
+        const scale = 0.35 + d * 1.25;
+        const x = laneCenter(o.lane, width, d);
+        const ground = trackY(horizonY, playerGroundY, d);
+        const ow = o.width * scale;
+        const oh = o.height * scale;
+        let y = ground - oh;
+
+        if (o.type === "low") y = ground - oh * 0.55;
+        if (o.type === "high") y = ground - oh - 42 * scale;
+
+        ctx.fillStyle = obstacleColor(o.type);
+        roundRect(x - ow / 2, y, ow, oh, 8);
+
+        drawBadge(o, x, y, ow, oh, scale);
+    }
+
+    function drawBadge(o, x, y, ow, oh, scale) {
+        const symbol = o.type === "ground" ? "X" : o.type === "low" ? "^" : "v";
+        const badgeSize = Math.max(24, 24 * scale);
+        let badgeY = y + oh / 2 - badgeSize / 2;
+        if (o.type === "high") badgeY = y + oh - badgeSize * 0.86;
+
+        ctx.fillStyle = "rgba(255, 255, 255, 0.94)";
+        ctx.beginPath();
+        ctx.arc(x, badgeY + badgeSize / 2, badgeSize / 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#141820";
+        ctx.font = `bold ${Math.max(18, 18 * scale)}px Arial`;
+        ctx.fillText(symbol, x - (symbol === "X" ? 7 : 5) * scale, badgeY + badgeSize * 0.72);
+    }
+
+    function drawCoin(c, width, horizonY, playerGroundY) {
+        const d = depth(c.x);
+        if (d <= 0 || d > 1.15) return;
+
+        const scale = 0.45 + d;
+        const size = 20 * scale;
+        const x = laneCenter(c.lane, width, d);
+        const y = trackY(horizonY, playerGroundY, d) + (c.yOffset + Math.sin(c.bob) * 4) * scale;
+
+        ctx.fillStyle = "gold";
+        ctx.beginPath();
+        ctx.arc(x, y, size / 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#fff591";
+        ctx.beginPath();
+        ctx.arc(x, y, size * 0.24, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    function drawPlayer(width) {
+        const laneWidth = width / lanes;
+        const w = 40;
+        const h = sliding ? 20 : 40;
+        const x = lanePos * laneWidth + laneWidth / 2 - w / 2;
+        const y = playerY - h;
+
+        ctx.fillStyle = "rgba(0, 0, 0, 0.32)";
+        ctx.beginPath();
+        ctx.ellipse(x + w / 2, y + h + 4, w / 2 + 8, 7, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#1f7aff";
+        roundRect(x, y, w, h, 9);
+        ctx.fillStyle = "#67daff";
+        roundRect(x + 7, y + 7, sliding ? 18 : 12, sliding ? 6 : 13, 5);
+    }
+
+    function drawHud() {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+        roundRect(14, 13, 188, 110, 8);
+        ctx.fillStyle = "white";
+        ctx.font = "bold 18px Arial";
+        ctx.fillText("Score: " + score, 26, 38);
+        ctx.font = "15px Arial";
+        ctx.fillText("High: " + highScore, 26, 63);
+        ctx.fillText("Speed: " + Math.floor(speed / 10) + " km/h", 26, 87);
+        ctx.fillText("Gets harder over time", 26, 111);
+    }
+
+    function depth(x) {
+        return 1 - x / spawnX;
+    }
+
+    function trackY(horizonY, playerGroundY, d) {
+        return horizonY + (playerGroundY - horizonY) * Math.pow(d, 0.82);
+    }
+
+    function laneCenter(laneIndex, width, d) {
+        const laneWidth = width / lanes;
+        const flatCenter = laneIndex * laneWidth + laneWidth / 2;
+        const pull = 1 - d;
+        const spread = (0.25 + d * 0.75) * (1 - pull * 0.08);
+        return width / 2 + (flatCenter - width / 2) * spread;
+    }
+
+    function obstacleColor(type) {
+        if (type === "ground") return "#e23730";
+        if (type === "low") return "#ff9527";
+        return "#9453ff";
+    }
+
+    function roundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.roundRect(x, y, w, h, r);
+        ctx.fill();
+    }
+
+    function randomLane() {
+        return Math.floor(Math.random() * lanes);
+    }
+
+    function moveLeft() {
+        if (!gameOver && targetLane > 0) targetLane--;
+    }
+
+    function moveRight() {
+        if (!gameOver && targetLane < lanes - 1) targetLane++;
+    }
+
+    function jump() {
+        if (!gameOver && !jumping && !sliding) {
+            jumping = true;
+            velocityY = -430;
+        }
+    }
+
+    function slide() {
+        if (!gameOver && !jumping && !sliding) {
+            sliding = true;
+            slideTimer = 0.7;
+        }
+    }
+
+    window.addEventListener("keydown", event => {
+        if (keys[event.code]) return;
+        keys[event.code] = true;
+
+        if (event.code === "ArrowLeft" || event.code === "KeyA") moveLeft();
+        if (event.code === "ArrowRight" || event.code === "KeyD") moveRight();
+        if (event.code === "ArrowUp" || event.code === "KeyW" || event.code === "Space") jump();
+        if (event.code === "ArrowDown" || event.code === "KeyS") slide();
+        if (event.code === "KeyR" && gameOver) resetGame();
+    });
+
+    window.addEventListener("keyup", event => {
+        keys[event.code] = false;
+    });
+
+    function loop(time) {
+        const dt = Math.min(0.033, (time - lastTime) / 1000 || 0);
+        lastTime = time;
+        update(dt);
+        draw();
+        requestAnimationFrame(loop);
+    }
+
+    resetGame();
+    requestAnimationFrame(loop);
+</script>
+</body>
+</html>
