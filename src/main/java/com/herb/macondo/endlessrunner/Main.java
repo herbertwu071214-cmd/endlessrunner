@@ -10,14 +10,18 @@ import javafx.scene.layout.StackPane;
 import javafx.stage.Stage;
 
 public class Main extends Application {
+    private static final int WINDOW_WIDTH = 800;
+    private static final int WINDOW_HEIGHT = 600;
+
     @Override
     public void start(Stage primaryStage) {
-        Canvas canvas = new Canvas(800, 600);
+        Canvas canvas = new Canvas(WINDOW_WIDTH, WINDOW_HEIGHT);
+
         GameModel model = new GameModel();
         GameView view = new GameView(canvas);
-
         StackPane root = new StackPane(canvas);
-        Scene scene = new Scene(root, 800, 600);
+        Scene scene = new Scene(root, WINDOW_WIDTH, WINDOW_HEIGHT);
+
         primaryStage.setTitle("Endless Runner");
         primaryStage.setScene(scene);
         primaryStage.show();

@@ -1,6 +1,10 @@
 package com.herb.endlessrunner.model;
 
 public class Coin {
+    private static final double OFF_SCREEN_X = -50;
+    private static final double BOB_SPEED = 6;
+    private static final double BOB_SIZE = 4;
+
     private double x;
     private int lane;
     private boolean collected;
@@ -21,13 +25,30 @@ public class Coin {
 
     public void update(double deltaTime, double speed) {
         x -= speed * deltaTime;
-        bobTimer += deltaTime * 6;
-        if (x < -50) collected = true;
+        bobTimer += deltaTime * BOB_SPEED;
+
+        if (x < OFF_SCREEN_X) {
+            collected = true;
+        }
     }
 
-    public double getX() { return x; }
-    public int getLane() { return lane; }
-    public boolean isCollected() { return collected; }
-    public void setCollected(boolean collected) { this.collected = collected; }
-    public double getYOffset() { return yOffset + Math.sin(bobTimer) * 4; }
+    public double getX() {
+        return x;
+    }
+
+    public int getLane() {
+        return lane;
+    }
+
+    public boolean isCollected() {
+        return collected;
+    }
+
+    public void setCollected(boolean collected) {
+        this.collected = collected;
+    }
+
+    public double getYOffset() {
+        return yOffset + Math.sin(bobTimer) * BOB_SIZE;
+    }
 }

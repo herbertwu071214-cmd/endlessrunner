@@ -9,25 +9,63 @@ public class InputHandler {
     private boolean upPressed;
     private boolean downPressed;
 
-    public void keyPressed(KeyEvent e) {
+    public boolean keyPressed(KeyEvent e) {
         KeyCode code = e.getCode();
-        if (code == KeyCode.A || code == KeyCode.LEFT) leftPressed = true;
-        if (code == KeyCode.D || code == KeyCode.RIGHT) rightPressed = true;
-        if (code == KeyCode.W || code == KeyCode.UP || code == KeyCode.SPACE) upPressed = true;
-        if (code == KeyCode.S || code == KeyCode.DOWN) downPressed = true;
+
+        if (code == KeyCode.A || code == KeyCode.LEFT) {
+            if (leftPressed) return false;
+            leftPressed = true;
+            return true;
+        }
+
+        if (code == KeyCode.D || code == KeyCode.RIGHT) {
+            if (rightPressed) return false;
+            rightPressed = true;
+            return true;
+        }
+
+        if (code == KeyCode.W || code == KeyCode.UP || code == KeyCode.SPACE) {
+            if (upPressed) return false;
+            upPressed = true;
+            return true;
+        }
+
+        if (code == KeyCode.S || code == KeyCode.DOWN) {
+            if (downPressed) return false;
+            downPressed = true;
+            return true;
+        }
+
+        return false;
     }
 
     public void keyReleased(KeyEvent e) {
         KeyCode code = e.getCode();
-        if (code == KeyCode.A || code == KeyCode.LEFT) leftPressed = false;
-        if (code == KeyCode.D || code == KeyCode.RIGHT) rightPressed = false;
-        if (code == KeyCode.W || code == KeyCode.UP || code == KeyCode.SPACE) upPressed = false;
-        if (code == KeyCode.S || code == KeyCode.DOWN) downPressed = false;
+
+        if (code == KeyCode.A || code == KeyCode.LEFT) {
+            leftPressed = false;
+        } else if (code == KeyCode.D || code == KeyCode.RIGHT) {
+            rightPressed = false;
+        } else if (code == KeyCode.W || code == KeyCode.UP || code == KeyCode.SPACE) {
+            upPressed = false;
+        } else if (code == KeyCode.S || code == KeyCode.DOWN) {
+            downPressed = false;
+        }
     }
 
-    public boolean isLeftPressed() { return leftPressed; }
-    public boolean isRightPressed() { return rightPressed; }
-    public boolean isUpPressed() { return upPressed; }
-    public boolean isDownPressed() { return downPressed; }
-}
+    public boolean isLeftPressed() {
+        return leftPressed;
+    }
 
+    public boolean isRightPressed() {
+        return rightPressed;
+    }
+
+    public boolean isUpPressed() {
+        return upPressed;
+    }
+
+    public boolean isDownPressed() {
+        return downPressed;
+    }
+}

@@ -10,6 +10,14 @@ public class GameModel {
     public static final double PLAYER_TRACK_X = 150;
     public static final double SPAWN_X = 960;
 
+    private static final double GRAVITY = 620;
+    private static final double JUMP_POWER = -430;
+    private static final double LANE_MOVE_SPEED = 7.5;
+    private static final double SLIDE_TIME = 0.7;
+    private static final double NORMAL_PLAYER_HEIGHT = 40;
+    private static final double SLIDING_PLAYER_HEIGHT = 20;
+    private static final double HIT_RANGE = 38;
+
     private int score;
     private int highScore;
     private boolean gameOver;
@@ -21,9 +29,8 @@ public class GameModel {
     private boolean isJumping;
     private boolean isSliding;
     private double slideTimer;
-    private double laneSwitchTimer;
     private double playerWidth = 40;
-    private double playerHeight = 40;
+    private double playerHeight = NORMAL_PLAYER_HEIGHT;
 
     private List<Obstacle> obstacles;
     private List<Coin> coins;
@@ -51,7 +58,6 @@ public class GameModel {
         isJumping = false;
         isSliding = false;
         slideTimer = 0;
-        laneSwitchTimer = 0;
         obstacles.clear();
         coins.clear();
         spawnTimer = 0;
@@ -63,10 +69,12 @@ public class GameModel {
     }
 
     public void update(double deltaTime) {
-        if (gameOver) return;
+        if (gameOver) {
+            return;
+        }
 
         if (isJumping) {
-            velocityY += 600 * deltaTime;
+            velocityY += GRAVITY * deltaTime;
             playerY += velocityY * deltaTime;
             if (playerY >= PLAYER_GROUND_Y) {
                 playerY = PLAYER_GROUND_Y;
@@ -79,13 +87,13 @@ public class GameModel {
             slideTimer -= deltaTime;
             if (slideTimer <= 0) {
                 isSliding = false;
-                playerHeight = 40;
+                playerHeight = NORMAL_PLAYER_HEIGHT;
             }
         }
 
         if (Math.abs(playerLanePosition - targetLane) > 0.01) {
             double direction = Math.signum(targetLane - playerLanePosition);
-            playerLanePosition += direction * deltaTime * 7.5;
+            playerLanePosition += direction * deltaTime * LANE_MOVE_SPEED;
             if ((direction > 0 && playerLanePosition >= targetLane)
                     || (direction < 0 && playerLanePosition <= targetLane)) {
                 playerLanePosition = targetLane;
@@ -118,14 +126,18 @@ public class GameModel {
         while (obsIt.hasNext()) {
             Obstacle o = obsIt.next();
             o.update(deltaTime, speed);
-            if (!o.isActive()) obsIt.remove();
+            if (!o.isActive()) {
+                obsIt.remove();
+            }
         }
 
         Iterator<Coin> coinIt = coins.iterator();
         while (coinIt.hasNext()) {
             Coin c = coinIt.next();
             c.update(deltaTime, speed);
-            if (c.isCollected()) coinIt.remove();
+            if (c.isCollected()) {
+                coinIt.remove();
+            }
         }
 
         checkCollisions();
@@ -140,9 +152,13 @@ public class GameModel {
         lastObstacleLane = lane;
         Obstacle.ObstacleType type;
         double r = random.nextDouble();
-        if (r < 0.4) type = Obstacle.ObstacleType.GROUND;
-        else if (r < 0.7) type = Obstacle.ObstacleType.LOW;
-        else type = Obstacle.ObstacleType.HIGH;
+        if (r < 0.4) {
+            type = Obstacle.ObstacleType.GROUND;
+        } else if (r < 0.7) {
+            type = Obstacle.ObstacleType.LOW;
+        } else {
+            type = Obstacle.ObstacleType.HIGH;
+        }
         obstacles.add(new Obstacle(SPAWN_X, lane, type));
     }
 
@@ -179,23 +195,15 @@ public class GameModel {
 
     private void checkCollisions() {
         for (Obstacle o : obstacles) {
-            if (o.getLane() != playerLane) continue;
-            if (Math.abs(o.getX() - PLAYER_TRACK_X) > 38) continue;
-
-            double playerBottom = playerY + 10;
-            double playerTop = playerY + 10 - playerHeight;
-
-            double obsBottom = playerY + 10;
-            double obsTop = playerY + 10 - o.getHeight();
-
-            if (o.getType() == Obstacle.ObstacleType.LOW) {
-                obsTop += 20;
-            } else if (o.getType() == Obstacle.ObstacleType.HIGH) {
-                obsTop -= 20;
-                obsBottom -= 20;
+            if (o.getLane() != playerLane) {
+                continue;
             }
 
-            if (playerTop < obsBottom && playerBottom > obsTop) {
+            if (Math.abs(o.getX() - PLAYER_TRACK_X) > HIT_RANGE) {
+                continue;
+            }
+
+            if (hitsPlayer(o)) {
                 gameOver = true;
                 if (score > highScore) highScore = score;
                 return;
@@ -203,12 +211,26 @@ public class GameModel {
         }
     }
 
+    private boolean hitsPlayer(Obstacle obstacle) {
+        if (obstacle.getType() == Obstacle.ObstacleType.GROUND) {
+            return true;
+        }
+
+        if (obstacle.getType() == Obstacle.ObstacleType.LOW) {
+            return playerY > PLAYER_GROUND_Y - 72;
+        }
+
+        return !isSliding || isJumping;
+    }
+
     private void collectCoins() {
         Iterator<Coin> coinIt = coins.iterator();
         while (coinIt.hasNext()) {
             Coin c = coinIt.next();
             if (c.getLane() == playerLane) {
-                if (Math.abs(c.getX() - PLAYER_TRACK_X) > 42) continue;
+                if (Math.abs(c.getX() - PLAYER_TRACK_X) > 42) {
+                    continue;
+                }
                 double coinCenterY = playerY - 10 + c.getYOffset();
                 double playerTop = playerY + 10 - playerHeight;
                 double playerBottom = playerY + 10;
@@ -227,47 +249,91 @@ public class GameModel {
     public void jump() {
         if (!isJumping && !isSliding && !gameOver) {
             isJumping = true;
-            velocityY = -350;
+            velocityY = JUMP_POWER;
         }
     }
 
     public void slide() {
         if (!isJumping && !isSliding && !gameOver) {
             isSliding = true;
-            slideTimer = 0.5;
-            playerHeight = 20;
+            slideTimer = SLIDE_TIME;
+            playerHeight = SLIDING_PLAYER_HEIGHT;
         }
     }
 
     public void moveLeft() {
         if (!gameOver && targetLane > 0) {
             targetLane = targetLane - 1;
-            laneSwitchTimer = 0;
         }
     }
 
     public void moveRight() {
         if (!gameOver && targetLane < 2) {
             targetLane = targetLane + 1;
-            laneSwitchTimer = 0;
         }
     }
 
-    public int getScore() { return score; }
-    public int getHighScore() { return highScore; }
-    public boolean isGameOver() { return gameOver; }
-    public int getPlayerLane() { return playerLane; }
-    public double getPlayerLanePosition() { return playerLanePosition; }
-    public double getPlayerY() { return playerY; }
-    public boolean isJumping() { return isJumping; }
-    public boolean isSliding() { return isSliding; }
-    public double getPlayerWidth() { return playerWidth; }
-    public double getPlayerHeight() { return playerHeight; }
-    public List<Obstacle> getObstacles() { return obstacles; }
-    public List<Coin> getCoins() { return coins; }
-    public double getSpeed() { return speed; }
-    public double getDistance() { return distance; }
+    public int getScore() {
+        return score;
+    }
 
-    public void setGameOver(boolean over) { gameOver = over; }
-    public void setHighScore(int high) { highScore = high; }
+    public int getHighScore() {
+        return highScore;
+    }
+
+    public boolean isGameOver() {
+        return gameOver;
+    }
+
+    public int getPlayerLane() {
+        return playerLane;
+    }
+
+    public double getPlayerLanePosition() {
+        return playerLanePosition;
+    }
+
+    public double getPlayerY() {
+        return playerY;
+    }
+
+    public boolean isJumping() {
+        return isJumping;
+    }
+
+    public boolean isSliding() {
+        return isSliding;
+    }
+
+    public double getPlayerWidth() {
+        return playerWidth;
+    }
+
+    public double getPlayerHeight() {
+        return playerHeight;
+    }
+
+    public List<Obstacle> getObstacles() {
+        return obstacles;
+    }
+
+    public List<Coin> getCoins() {
+        return coins;
+    }
+
+    public double getSpeed() {
+        return speed;
+    }
+
+    public double getDistance() {
+        return distance;
+    }
+
+    public void setGameOver(boolean over) {
+        gameOver = over;
+    }
+
+    public void setHighScore(int high) {
+        highScore = high;
+    }
 }
